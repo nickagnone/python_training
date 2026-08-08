@@ -38,7 +38,7 @@
 students = [
     {"name": "Nick", "score": 87},
     {"name": "Sarah", "score": 95},
-    {"name": "Mike", "score": 78},
+    {"name": "Mike", "score": 78}, 
     {"name": "Emma", "score": 91}
 ]
 
