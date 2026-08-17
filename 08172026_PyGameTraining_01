@@ -1,0 +1,317 @@
+import pygame
+import time
+import random
+
+pygame.mixer.init()
+pygame.font.init()
+
+WIDTH, HEIGHT = 1800, 800
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Falling Stars")
+
+PLAYER_VEL = 25
+STAR_VEL = 5
+
+STAR_WIDTH = 10
+STAR_HEIGHT = 20
+
+FONT = pygame.font.SysFont("timesnewroman", 18)
+BIG_FONT = pygame.font.SysFont("timesnewroman", 60)
+
+PLAYER_WIDTH, PLAYER_HEIGHT = 40, 40
+
+# -------------------------
+# GAME SETTINGS
+# -------------------------
+
+AVOID_TIME = 20
+GET_HIT_TIME = 10
+
+RED_BG = (120, 0, 0)
+GREEN_BG = (0, 120, 0)
+
+# -------------------------
+# DRAW GAME
+# -------------------------
+
+def draw(player, elapsed_time, stars, score, game_phase):
+    
+    # Background
+    if game_phase == "avoid":
+        WIN.fill(RED_BG)
+    else:
+        WIN.fill(GREEN_BG)
+
+    # Time
+    time_text = FONT.render(
+        f"TIME: {round(elapsed_time)} SECONDS",
+        1,
+        "white"
+    )
+    WIN.blit(time_text, (10, 10))
+
+    # Score
+    score_text = FONT.render(
+        f"SCORE: {score}",
+        1,
+        "white"
+    )
+    WIN.blit(
+        score_text,
+        (WIDTH - score_text.get_width() - 10, 10)
+    )
+
+    # Phase
+    if game_phase == "avoid":
+        phase_text = BIG_FONT.render(
+            "AVOID THE STARS!",
+            1,
+            "white"
+        )
+    else:
+        phase_text = FONT.render(
+            "GET HIT!",
+            1,
+            "white"
+        )
+
+    WIN.blit(
+        phase_text,
+        (
+            WIDTH // 2 - phase_text.get_width() // 2,
+            10
+        )
+    )
+
+    # Player
+    pygame.draw.rect(WIN, "white", player)
+
+    # Stars
+    for star in stars:
+        pygame.draw.rect(WIN, "yellow", star)
+
+    pygame.display.update()
+
+
+# -------------------------
+# MAIN GAME
+# -------------------------
+
+def main():
+
+    run = True
+
+    #Game Music
+    pygame.mixer.music.load("sounds/arcadewave.mp3")
+    pygame.mixer.music.set_volume(0.3)
+    pygame.mixer.music.play(-1)
+
+    #Game Sounds
+    death_sound = pygame.mixer.Sound("sounds/death.wav")
+
+    # Player
+    player = pygame.Rect(
+        200,
+        HEIGHT - PLAYER_HEIGHT,
+        PLAYER_WIDTH,
+        PLAYER_HEIGHT
+    )
+
+    # Clock
+    clock = pygame.time.Clock()
+
+    # Overall game timer
+    start_time = time.time()
+    elapsed_time = 0
+
+    # Score
+    score = 0
+
+    # Current game phase
+    game_phase = "avoid"
+
+    # Timer for current phase
+    phase_start_time = time.time()
+
+    # Star spawning
+    star_add_increment = 2000
+    star_count = 0
+
+    stars = []
+
+    # Game over
+    hit = False
+
+    # -------------------------
+    # GAME LOOP
+    # -------------------------
+
+    while run:
+
+        # Keep game running at 60 FPS
+        star_count += clock.tick(60)
+
+        # Overall elapsed time
+        elapsed_time = time.time() - start_time
+
+        # Time spent in current phase
+        phase_elapsed = time.time() - phase_start_time
+
+        # -------------------------
+        # CHANGE GAME PHASE
+        # -------------------------
+
+        if game_phase == "avoid" and phase_elapsed >= AVOID_TIME:
+
+            game_phase = "get_hit"
+            phase_start_time = time.time()
+
+        elif game_phase == "get_hit" and phase_elapsed >= GET_HIT_TIME:
+
+            game_phase = "avoid"
+            phase_start_time = time.time()
+
+        # -------------------------
+        # SPAWN STARS
+        # -------------------------
+
+        if star_count > star_add_increment:
+
+            for _ in range(3):
+
+                star_x = random.randint(
+                    0,
+                    WIDTH - STAR_WIDTH
+                )
+
+                star = pygame.Rect(
+                    star_x,
+                    -STAR_HEIGHT,
+                    STAR_WIDTH,
+                    STAR_HEIGHT
+                )
+
+                stars.append(star)
+
+            # Make stars spawn faster over time
+            star_add_increment = max(
+                200,
+                star_add_increment - 50
+            )
+
+            star_count = 0
+
+        # -------------------------
+        # EVENTS
+        # -------------------------
+
+        for event in pygame.event.get():
+
+            if event.type == pygame.QUIT:
+                run = False
+                break
+
+        # -------------------------
+        # PLAYER MOVEMENT
+        # -------------------------
+
+        keys = pygame.key.get_pressed()
+
+        if (
+            keys[pygame.K_LEFT]
+            or keys[pygame.K_a]
+        ) and player.x - PLAYER_VEL >= 0:
+
+            player.x -= PLAYER_VEL
+
+        elif (
+            keys[pygame.K_RIGHT]
+            or keys[pygame.K_d]
+        ) and player.x + PLAYER_VEL + player.width <= WIDTH:
+
+            player.x += PLAYER_VEL
+
+        # -------------------------
+        # MOVE STARS
+        # -------------------------
+
+        for star in stars[:]:
+
+            star.y += STAR_VEL
+
+            # Remove stars that leave screen
+            if star.y > HEIGHT:
+
+                stars.remove(star)
+
+            # Collision
+            elif (
+                star.y + star.height >= player.y
+                and star.colliderect(player)
+            ):
+
+                stars.remove(star)
+
+                # RED PHASE
+                # Getting hit = GAME OVER
+
+                if game_phase == "avoid":
+
+                    death_sound.play()
+                    hit = True
+                    break
+
+                # GREEN PHASE
+                # Getting hit = +5 points
+
+                elif game_phase == "get_hit":
+
+                    score += 5
+
+        # -------------------------
+        # GAME OVER
+        # -------------------------
+
+        if hit:
+
+            lost_text = BIG_FONT.render(
+                "YOU'VE LOST",
+                1,
+                "white"
+            )
+
+            WIN.blit(
+                lost_text,
+                (
+                    WIDTH / 2 - lost_text.get_width() / 2,
+                    HEIGHT / 2 - lost_text.get_height() / 2
+                )
+            )
+
+            pygame.display.update()
+
+            pygame.time.delay(4000)
+
+            break
+
+        # -------------------------
+        # DRAW
+        # -------------------------
+
+        draw(
+            player,
+            elapsed_time,
+            stars,
+            score,
+            game_phase
+        )
+
+    pygame.quit()
+
+
+# -------------------------
+# START GAME
+# -------------------------
+
+if __name__ == "__main__":
+    main()
